@@ -1,0 +1,18 @@
+@* Small card with a title, an icon and a money value. *@
+
+<MudPaper Class="pa-4 d-flex align-center gap-3" Elevation="0" Outlined="true">
+    <MudAvatar Color="Color" Variant="Variant.Outlined" Size="Size.Medium">
+        <MudIcon Icon="@Icon" />
+    </MudAvatar>
+    <div>
+        <MudText Typo="Typo.body2" Class="mud-text-secondary">@Title</MudText>
+        <MudText Typo="Typo.h6" Color="Color">@Format.Money(Value)</MudText>
+    </div>
+</MudPaper>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public decimal Value { get; set; }
+    [Parameter] public string Icon { get; set; } = Icons.Material.Filled.AttachMoney;
+    [Parameter] public Color Color { get; set; } = Color.Default;
+}

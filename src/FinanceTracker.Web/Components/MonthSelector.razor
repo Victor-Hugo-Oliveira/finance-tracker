@@ -1,0 +1,23 @@
+@* Previous / next month navigation with the month name in the middle. *@
+
+<div class="d-flex align-center gap-1">
+    <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" OnClick="() => Change(-1)" aria-label="Mês anterior" />
+    <MudText Typo="Typo.h6" Style="min-width: 190px; text-align: center">@Format.Month(Value)</MudText>
+    <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" OnClick="() => Change(1)" aria-label="Próximo mês" />
+    @* Always rendered (just hidden) so the layout doesn't jump when it appears. *@
+    <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="() => ValueChanged.InvokeAsync(Today)"
+               Style="@(Value == Today ? "visibility:hidden" : null)" aria-hidden="@(Value == Today ? "true" : null)">
+        Mês atual
+    </MudButton>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public YearMonth Value { get; set; }
+    [Parameter] public EventCallback<YearMonth> ValueChanged { get; set; }
+
+    [Inject] private TimeProvider Time { get; set; } = default!;
+
+    private YearMonth Today => YearMonth.From(Time.GetLocalNow().DateTime);
+
+    private Task Change(int months) => ValueChanged.InvokeAsync(Value.AddMonths(months));
+}

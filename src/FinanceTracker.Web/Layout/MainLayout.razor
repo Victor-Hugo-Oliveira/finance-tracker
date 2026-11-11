@@ -1,0 +1,46 @@
+﻿@inherits LayoutComponentBase
+
+<MudThemeProvider Theme="_theme" />
+<MudPopoverProvider />
+<MudDialogProvider MaxWidth="MaxWidth.Small" FullWidth="true" CloseOnEscapeKey="true" />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="1">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start"
+                       OnClick="() => _drawerOpen = !_drawerOpen" aria-label="Abrir menu" />
+        <MudIcon Icon="@Icons.Material.Filled.AccountBalanceWallet" Class="ml-2 mr-2" />
+        <MudText Typo="Typo.h6">Finance Tracker</MudText>
+    </MudAppBar>
+
+    <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="1" Variant="DrawerVariant.Responsive">
+        <NavMenu />
+    </MudDrawer>
+
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.Large" Class="py-6">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private bool _drawerOpen = true;
+
+    private readonly MudTheme _theme = new()
+    {
+        PaletteLight = new PaletteLight
+        {
+            Primary = "#2E7D32",
+            Secondary = "#00897B",
+            AppbarBackground = "#2E7D32",
+            Success = "#2E7D32",
+            Error = "#C62828",
+            Background = "#F6F8F6"
+        },
+        Typography = new Typography
+        {
+            Default = new DefaultTypography { FontFamily = ["Roboto", "Helvetica", "Arial", "sans-serif"] }
+        }
+    };
+}

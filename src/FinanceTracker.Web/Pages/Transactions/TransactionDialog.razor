@@ -1,0 +1,116 @@
+@* Create or edit a transaction. Saves through TransactionService and closes with Ok on success. *@
+@inject TransactionService Transactions
+@inject CategoryService Categories
+@inject TimeProvider Time
+
+<EditForm Model="_model" OnValidSubmit="SaveAsync">
+    <DataAnnotationsValidator />
+    <MudDialog>
+        <DialogContent>
+            <MudRadioGroup T="TransactionType" Value="_model.Type" ValueChanged="TypeChanged" Class="mb-2">
+                <MudRadio Value="TransactionType.Expense" Color="Color.Error">Despesa</MudRadio>
+                <MudRadio Value="TransactionType.Income" Color="Color.Success">Receita</MudRadio>
+            </MudRadioGroup>
+
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="6">
+                    <MudNumericField T="decimal?" Label="Valor" @bind-Value="_model.Amount" For="() => _model.Amount"
+                                     Adornment="Adornment.Start" AdornmentText="R$" Format="N2" Min="0" HideSpinButtons="true"
+                                     Variant="Variant.Outlined" AutoFocus="true" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudDatePicker Label="Data" @bind-Date="_model.Date" For="() => _model.Date"
+                                   DateFormat="dd/MM/yyyy" Variant="Variant.Outlined" Editable="true" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField Label="Descrição" @bind-Value="_model.Description" For="() => _model.Description"
+                                  Counter="Transaction.DescriptionMaxLength" MaxLength="Transaction.DescriptionMaxLength"
+                                  Placeholder="@(_model.Type == TransactionType.Expense ? "Ex.: Mercado, aluguel, Uber" : "Ex.: Salário de novembro")"
+                                  Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudSelect T="Guid?" Label="Categoria" @bind-Value="_model.CategoryId" For="() => _model.CategoryId"
+                               Variant="Variant.Outlined" AnchorOrigin="Origin.BottomCenter">
+                        @foreach (var category in AvailableCategories)
+                        {
+                            <MudSelectItem T="Guid?" Value="category.Id">
+                                <CategoryChip Category="category" />
+                            </MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+            </MudGrid>
+
+            @if (_error is not null)
+            {
+                <MudAlert Severity="Severity.Error" Dense="true" Class="mt-4">@_error</MudAlert>
+            }
+        </DialogContent>
+        <DialogActions>
+            <MudButton OnClick="Cancel" Disabled="_saving">Cancelar</MudButton>
+            <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Disabled="_saving">
+                @(Existing is null ? "Adicionar" : "Salvar")
+            </MudButton>
+        </DialogActions>
+    </MudDialog>
+</EditForm>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = default!;
+
+    /// <summary>The transaction to edit, or null to create a new one.</summary>
+    [Parameter] public Transaction? Existing { get; set; }
+
+    /// <summary>Default type for new transactions (e.g. when the list is filtered to income).</summary>
+    [Parameter] public TransactionType DefaultType { get; set; } = TransactionType.Expense;
+
+    private TransactionFormModel _model = new();
+    private IReadOnlyList<Category> _categories = [];
+    private string? _error;
+    private bool _saving;
+
+    // Only categories of the chosen type; archived ones only if this transaction already uses it.
+    private IEnumerable<Category> AvailableCategories => _categories.Where(c =>
+        c.Type == _model.Type && (!c.IsArchived || c.Id == Existing?.CategoryId));
+
+    protected override async Task OnInitializedAsync()
+    {
+        _categories = await Categories.GetAllAsync(includeArchived: true);
+        _model = Existing is null
+            ? new TransactionFormModel { Type = DefaultType, Date = Time.GetLocalNow().Date }
+            : TransactionFormModel.From(Existing);
+    }
+
+    private void TypeChanged(TransactionType type)
+    {
+        _model.Type = type;
+        // A category of the other type is no longer valid.
+        if (_model.CategoryId is { } id && _categories.FirstOrDefault(c => c.Id == id)?.Type != type)
+            _model.CategoryId = null;
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        _error = null;
+        try
+        {
+            if (Existing is null)
+                await Transactions.CreateAsync(_model.ToInput());
+            else
+                await Transactions.UpdateAsync(Existing.Id, _model.ToInput());
+
+            Dialog.Close(DialogResult.Ok(true));
+        }
+        catch (DomainException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void Cancel() => Dialog.Cancel();
+}

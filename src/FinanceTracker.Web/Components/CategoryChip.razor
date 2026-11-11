@@ -1,0 +1,17 @@
+@* Category name with its color dot and icon. *@
+
+@if (Category is null)
+{
+    <MudText Typo="Typo.body2" Class="mud-text-secondary">Sem categoria</MudText>
+}
+else
+{
+    <span class="d-inline-flex align-center" title="@(Category.IsArchived ? "Categoria arquivada" : null)">
+        <MudIcon Icon="@CategoryIcons.Get(Category.Icon)" Size="Size.Small" Style="@($"color:{Category.Color}")" Class="mr-1" />
+        <MudText Typo="Typo.body2" Inline="true" Class="@(Category.IsArchived ? "mud-text-secondary" : null)">@Category.Name</MudText>
+    </span>
+}
+
+@code {
+    [Parameter] public Category? Category { get; set; }
+}

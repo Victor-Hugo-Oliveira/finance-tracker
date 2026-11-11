@@ -1,0 +1,204 @@
+@page "/"
+@page "/transacoes"
+@inject TransactionService Transactions
+@inject CategoryService Categories
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject TimeProvider Time
+
+<PageTitle>Transações · Finance Tracker</PageTitle>
+
+<div class="d-flex flex-wrap align-center justify-space-between gap-3 mb-4">
+    <MudText Typo="Typo.h4">Transações</MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="() => OpenDialogAsync(null)">
+        Nova transação
+    </MudButton>
+</div>
+
+<MudPaper Class="pa-3 mb-4" Elevation="0" Outlined="true">
+    <div class="d-flex justify-center mb-2">
+        <MonthSelector Value="_month" ValueChanged="MonthChanged" />
+    </div>
+    <MudGrid Spacing="2">
+        <MudItem xs="6" md="3">
+            <MudSelect T="TransactionType?" Label="Tipo" Value="_type" ValueChanged="TypeChanged" Dense="true"
+                       Variant="Variant.Outlined" Margin="Margin.Dense" ShrinkLabel="true">
+                <MudSelectItem T="TransactionType?" Value="null">Todos</MudSelectItem>
+                <MudSelectItem T="TransactionType?" Value="TransactionType.Income">Receitas</MudSelectItem>
+                <MudSelectItem T="TransactionType?" Value="TransactionType.Expense">Despesas</MudSelectItem>
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="6" md="3">
+            <MudSelect T="Guid?" Label="Categoria" Value="_categoryId" ValueChanged="CategoryChanged" Dense="true"
+                       Variant="Variant.Outlined" Margin="Margin.Dense" ShrinkLabel="true">
+                <MudSelectItem T="Guid?" Value="null">Todas</MudSelectItem>
+                @foreach (var category in FilterCategories)
+                {
+                    <MudSelectItem T="Guid?" Value="category.Id">@category.Name</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" md="6">
+            <MudTextField T="string" Label="Buscar" Placeholder="Descrição" Value="_search" ValueChanged="SearchChanged"
+                          DebounceInterval="300" Immediate="true" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" />
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+<MudGrid Spacing="3" Class="mb-4">
+    <MudItem xs="12" sm="4">
+        <SummaryCard Title="Receitas" Value="_income" Icon="@Icons.Material.Filled.ArrowUpward" Color="Color.Success" />
+    </MudItem>
+    <MudItem xs="12" sm="4">
+        <SummaryCard Title="Despesas" Value="_expenses" Icon="@Icons.Material.Filled.ArrowDownward" Color="Color.Error" />
+    </MudItem>
+    <MudItem xs="12" sm="4">
+        <SummaryCard Title="Saldo" Value="_income - _expenses" Icon="@Icons.Material.Filled.AccountBalance"
+                     Color="@(_income - _expenses < 0 ? Color.Error : Color.Primary)" />
+    </MudItem>
+</MudGrid>
+
+<MudTable Items="_items" Hover="true" Loading="_loading" Breakpoint="Breakpoint.Sm" Elevation="0" Outlined="true"
+          LoadingProgressColor="Color.Primary">
+    <HeaderContent>
+        <MudTh Style="width:110px">Data</MudTh>
+        <MudTh>Descrição</MudTh>
+        <MudTh>Categoria</MudTh>
+        <MudTh Style="text-align:right">Valor</MudTh>
+        <MudTh Style="width:96px"></MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Data">@Format.Date(context.Date)</MudTd>
+        <MudTd DataLabel="Descrição">@context.Description</MudTd>
+        <MudTd DataLabel="Categoria"><CategoryChip Category="@_categoryById.GetValueOrDefault(context.CategoryId)" /></MudTd>
+        <MudTd DataLabel="Valor" Style="text-align:right">
+            <span class="@(context.Type == TransactionType.Income ? "amount-income" : "amount-expense")">@Format.SignedMoney(context)</span>
+        </MudTd>
+        <MudTd Style="text-align:right; white-space:nowrap">
+            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="() => OpenDialogAsync(context)"
+                           aria-label="@($"Editar {context.Description}")" title="Editar" />
+            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="() => DeleteAsync(context)"
+                           aria-label="@($"Excluir {context.Description}")" title="Excluir" />
+        </MudTd>
+    </RowTemplate>
+    <NoRecordsContent>
+        <div class="pa-8 d-flex flex-column align-center">
+            <MudIcon Icon="@Icons.Material.Filled.ReceiptLong" Size="Size.Large" Class="mb-2 mud-text-secondary" />
+            @if (HasFilters)
+            {
+                <MudText Class="mb-2">Nenhuma transação encontrada com esses filtros.</MudText>
+                <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="ClearFiltersAsync">Limpar filtros</MudButton>
+            }
+            else
+            {
+                <MudText Class="mb-2">Nenhuma transação em @Format.Month(_month).ToLower(Format.PtBr).</MudText>
+                <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="() => OpenDialogAsync(null)">Adicionar a primeira</MudButton>
+            }
+        </div>
+    </NoRecordsContent>
+</MudTable>
+
+@if (_items.Count > 0)
+{
+    <MudText Typo="Typo.caption" Class="mt-2 mud-text-secondary" Style="display:block">
+        @_items.Count @(_items.Count == 1 ? "transação" : "transações")
+    </MudText>
+}
+
+@code {
+    private YearMonth _month;
+    private TransactionType? _type;
+    private Guid? _categoryId;
+    private string? _search;
+
+    private IReadOnlyList<Transaction> _items = [];
+    private IReadOnlyList<Category> _categories = [];
+    private Dictionary<Guid, Category> _categoryById = [];
+    private decimal _income;
+    private decimal _expenses;
+    private bool _loading = true;
+
+    private bool HasFilters => _type is not null || _categoryId is not null || !string.IsNullOrWhiteSpace(_search);
+
+    private IEnumerable<Category> FilterCategories => _categories.Where(c => _type is null || c.Type == _type);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _month = YearMonth.From(Time.GetLocalNow().DateTime);
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _categories = await Categories.GetAllAsync(includeArchived: true);
+        _categoryById = _categories.ToDictionary(c => c.Id);
+
+        _items = await Transactions.QueryAsync(new TransactionFilter
+        {
+            Month = _month,
+            Type = _type,
+            CategoryId = _categoryId,
+            Search = _search
+        });
+
+        // Totals of what is on screen, so they always match the filters.
+        _income = _items.Where(t => t.Type == TransactionType.Income).Sum(t => t.Amount);
+        _expenses = _items.Where(t => t.Type == TransactionType.Expense).Sum(t => t.Amount);
+        _loading = false;
+    }
+
+    private Task MonthChanged(YearMonth month) { _month = month; return LoadAsync(); }
+
+    private Task TypeChanged(TransactionType? type)
+    {
+        _type = type;
+        // Keep the category filter only if it still fits the type.
+        if (_categoryId is { } id && type is not null && _categoryById.GetValueOrDefault(id)?.Type != type)
+            _categoryId = null;
+        return LoadAsync();
+    }
+
+    private Task CategoryChanged(Guid? id) { _categoryId = id; return LoadAsync(); }
+
+    private Task SearchChanged(string? text) { _search = text; return LoadAsync(); }
+
+    private Task ClearFiltersAsync()
+    {
+        _type = null;
+        _categoryId = null;
+        _search = null;
+        return LoadAsync();
+    }
+
+    private async Task OpenDialogAsync(Transaction? existing)
+    {
+        var parameters = new DialogParameters<TransactionDialog>
+        {
+            { x => x.Existing, existing },
+            { x => x.DefaultType, _type ?? TransactionType.Expense }
+        };
+
+        var dialog = await DialogService.ShowAsync<TransactionDialog>(
+            existing is null ? "Nova transação" : "Editar transação", parameters);
+        var result = await dialog.Result;
+        if (result is null || result.Canceled) return;
+
+        Snackbar.Add(existing is null ? "Transação adicionada." : "Transação atualizada.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task DeleteAsync(Transaction transaction)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Excluir transação",
+            $"Excluir \"{transaction.Description}\" ({Format.SignedMoney(transaction)})? Essa ação não pode ser desfeita.",
+            yesText: "Excluir", cancelText: "Cancelar");
+        if (confirmed != true) return;
+
+        await Transactions.DeleteAsync(transaction.Id);
+        Snackbar.Add("Transação excluída.", Severity.Info);
+        await LoadAsync();
+    }
+}
