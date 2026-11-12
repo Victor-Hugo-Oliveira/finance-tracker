@@ -93,4 +93,21 @@ public class CategoryServiceTests
         Assert.Empty(await _app.Budgets.GetStatusAsync(TestApp.ThisMonth));
         await Assert.ThrowsAsync<NotFoundException>(() => _app.Categories.GetByIdAsync(leisure.Id));
     }
+
+    [Fact]
+    public async Task Transaction_counts_are_grouped_by_category()
+    {
+        await _app.ExpenseAsync(10m);
+        await _app.ExpenseAsync(20m);
+        await _app.ExpenseAsync(30m, "Transporte");
+        var food = await _app.CategoryAsync("Alimentação");
+        var transport = await _app.CategoryAsync("Transporte");
+        var health = await _app.CategoryAsync("Saúde");
+
+        var counts = await _app.Categories.GetTransactionCountsAsync();
+
+        Assert.Equal(2, counts[food.Id]);
+        Assert.Equal(1, counts[transport.Id]);
+        Assert.False(counts.ContainsKey(health.Id));
+    }
 }

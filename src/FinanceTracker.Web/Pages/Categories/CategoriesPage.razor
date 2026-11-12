@@ -1,0 +1,126 @@
+@page "/categorias"
+@inject CategoryService Categories
+@inject BudgetService Budgets
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject TimeProvider Time
+
+<PageTitle>Categorias · Finance Tracker</PageTitle>
+
+<div class="d-flex flex-wrap align-center justify-space-between gap-3 mb-4">
+    <MudText Typo="Typo.h4">Categorias</MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="() => OpenDialogAsync(null)">
+        Nova categoria
+    </MudButton>
+</div>
+
+<MudPaper Elevation="0" Outlined="true">
+    <div class="d-flex flex-wrap align-center justify-space-between px-2">
+        <MudTabs @bind-ActivePanelIndex="_tab" Elevation="0" ApplyEffectsToContainer="true" TabPanelsClass="d-none">
+            <MudTabPanel Text="@($"Despesas ({CountOf(TransactionType.Expense)})")" />
+            <MudTabPanel Text="@($"Receitas ({CountOf(TransactionType.Income)})")" />
+        </MudTabs>
+        <MudSwitch T="bool" Value="_showArchived" ValueChanged="ShowArchivedChanged" Color="Color.Primary" Class="mr-2">
+            Mostrar arquivadas@(_archivedCount > 0 ? $" ({_archivedCount})" : "")
+        </MudSwitch>
+    </div>
+    <MudDivider />
+    <CategoryTable Items="Visible" Counts="_counts" Limits="_limits" ShowBudget="SelectedType == TransactionType.Expense"
+                   OnEdit="c => OpenDialogAsync(c)" OnArchive="ArchiveAsync" OnRestore="RestoreAsync" OnDelete="DeleteAsync" />
+</MudPaper>
+
+<MudText Typo="Typo.caption" Class="mt-2 mud-text-secondary" Style="display:block">
+    Categorias arquivadas não aparecem ao lançar novas transações, mas o histórico continua intacto.
+    Só é possível excluir categorias sem transações.
+</MudText>
+
+@code {
+    private int _tab;
+    private bool _showArchived;
+    private int _archivedCount;
+    private IReadOnlyList<Category> _all = [];
+    private IReadOnlyDictionary<Guid, int> _counts = new Dictionary<Guid, int>();
+    private Dictionary<Guid, decimal> _limits = [];
+
+    private TransactionType SelectedType => _tab == 0 ? TransactionType.Expense : TransactionType.Income;
+
+    private IReadOnlyList<Category> Visible => _all
+        .Where(c => c.Type == SelectedType && (_showArchived || !c.IsArchived))
+        .ToList();
+
+    private int CountOf(TransactionType type) => _all.Count(c => c.Type == type && (_showArchived || !c.IsArchived));
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _all = await Categories.GetAllAsync(includeArchived: true);
+        _archivedCount = _all.Count(c => c.IsArchived);
+        _counts = await Categories.GetTransactionCountsAsync();
+
+        // The limit is the same every month, so any month works here.
+        var status = await Budgets.GetStatusAsync(YearMonth.From(Time.GetLocalNow().DateTime));
+        _limits = status.ToDictionary(s => s.CategoryId, s => s.Limit);
+    }
+
+    private void ShowArchivedChanged(bool value) => _showArchived = value;
+
+    private async Task OpenDialogAsync(Category? existing)
+    {
+        var parameters = new DialogParameters<CategoryDialog>
+        {
+            { x => x.Existing, existing },
+            { x => x.DefaultType, SelectedType }
+        };
+        var dialog = await DialogService.ShowAsync<CategoryDialog>(
+            existing is null ? "Nova categoria" : "Editar categoria", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+        if (result is null || result.Canceled) return;
+
+        Snackbar.Add(existing is null ? "Categoria criada." : "Categoria atualizada.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task ArchiveAsync(Category category)
+    {
+        var hasBudget = _limits.ContainsKey(category.Id);
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Arquivar categoria",
+            $"Arquivar \"{category.Name}\"? Ela deixa de aparecer ao lançar novas transações" +
+            (hasBudget ? " e o orçamento dela fica pausado" : "") +
+            ". Você pode restaurá-la quando quiser.",
+            yesText: "Arquivar", cancelText: "Cancelar");
+        if (confirmed != true) return;
+
+        await RunAsync(() => Categories.ArchiveAsync(category.Id), "Categoria arquivada.");
+    }
+
+    private Task RestoreAsync(Category category) =>
+        RunAsync(() => Categories.RestoreAsync(category.Id), "Categoria restaurada.");
+
+    private async Task DeleteAsync(Category category)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Excluir categoria",
+            $"Excluir \"{category.Name}\"? Essa ação não pode ser desfeita.",
+            yesText: "Excluir", cancelText: "Cancelar");
+        if (confirmed != true) return;
+
+        await RunAsync(() => Categories.DeleteAsync(category.Id), "Categoria excluída.");
+    }
+
+    private async Task RunAsync(Func<Task> action, string success)
+    {
+        try
+        {
+            await action();
+            Snackbar.Add(success, Severity.Success);
+        }
+        catch (DomainException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Warning);
+        }
+        await LoadAsync();
+    }
+}

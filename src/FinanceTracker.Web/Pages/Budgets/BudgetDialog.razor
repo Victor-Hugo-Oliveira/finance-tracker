@@ -1,0 +1,104 @@
+@* Set the monthly limit of an expense category (new budget or change an existing one). *@
+@using System.ComponentModel.DataAnnotations
+@inject BudgetService Budgets
+
+<EditForm Model="_model" OnValidSubmit="SaveAsync">
+    <DataAnnotationsValidator />
+    <MudDialog>
+        <DialogContent>
+            @if (Existing is null)
+            {
+                <MudSelect T="Guid?" Label="Categoria" @bind-Value="_model.CategoryId" For="() => _model.CategoryId"
+                           Variant="Variant.Outlined" AnchorOrigin="Origin.BottomCenter" Class="mb-3">
+                    @foreach (var category in Options)
+                    {
+                        <MudSelectItem T="Guid?" Value="category.Id"><CategoryChip Category="category" /></MudSelectItem>
+                    }
+                </MudSelect>
+            }
+            else
+            {
+                <div class="mb-3"><CategoryChip Category="Existing" /></div>
+            }
+
+            <MudNumericField T="decimal?" Label="Limite mensal" @bind-Value="_model.Limit" For="() => _model.Limit"
+                             Adornment="Adornment.Start" AdornmentText="R$" Format="N2" Min="0" HideSpinButtons="true"
+                             Variant="Variant.Outlined" />
+
+            @if (_model.CategoryId is { } id)
+            {
+                <MudText Typo="Typo.caption" Class="mud-text-secondary mt-1" Style="display:block">
+                    Gasto em @Format.Month(Month).ToLower(Format.PtBr): @Format.Money(Spent.GetValueOrDefault(id))
+                </MudText>
+            }
+            <MudText Typo="Typo.caption" Class="mud-text-secondary" Style="display:block">
+                O mesmo limite vale para todos os meses. Você recebe um alerta ao atingir @BudgetService.WarningThresholdPercent.ToString("0")%.
+            </MudText>
+
+            @if (_error is not null)
+            {
+                <MudAlert Severity="Severity.Error" Dense="true" Class="mt-4">@_error</MudAlert>
+            }
+        </DialogContent>
+        <DialogActions>
+            <MudButton OnClick="() => Dialog.Cancel()" Disabled="_saving">Cancelar</MudButton>
+            <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Disabled="_saving">Salvar</MudButton>
+        </DialogActions>
+    </MudDialog>
+</EditForm>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = default!;
+
+    /// <summary>Category whose budget is being changed, or null to pick one from <see cref="Options"/>.</summary>
+    [Parameter] public Category? Existing { get; set; }
+    [Parameter] public decimal? CurrentLimit { get; set; }
+
+    /// <summary>Categories that can receive a new budget.</summary>
+    [Parameter] public IReadOnlyList<Category> Options { get; set; } = [];
+
+    /// <summary>Preselected category when creating (e.g. "Definir" clicked on a row).</summary>
+    [Parameter] public Guid? PreselectedId { get; set; }
+
+    [Parameter] public YearMonth Month { get; set; }
+    [Parameter] public IReadOnlyDictionary<Guid, decimal> Spent { get; set; } = new Dictionary<Guid, decimal>();
+
+    private readonly FormModel _model = new();
+    private string? _error;
+    private bool _saving;
+
+    protected override void OnInitialized()
+    {
+        _model.CategoryId = Existing?.Id ?? PreselectedId;
+        _model.Limit = CurrentLimit;
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        _error = null;
+        try
+        {
+            await Budgets.SetAsync(_model.CategoryId!.Value, _model.Limit!.Value);
+            Dialog.Close(DialogResult.Ok(true));
+        }
+        catch (DomainException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private sealed class FormModel
+    {
+        [Required(ErrorMessage = "Escolha uma categoria.")]
+        public Guid? CategoryId { get; set; }
+
+        [Required(ErrorMessage = "Informe o limite.")]
+        [Range(0.01, 1_000_000_000, ErrorMessage = "O limite deve ser maior que zero.")]
+        public decimal? Limit { get; set; }
+    }
+}

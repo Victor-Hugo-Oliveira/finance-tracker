@@ -26,6 +26,15 @@ public class CategoryService(FinanceWorkspace workspace)
         return Find(data, id);
     }
 
+    /// <summary>How many transactions use each category. Categories without transactions are left out.</summary>
+    public async Task<IReadOnlyDictionary<Guid, int>> GetTransactionCountsAsync(CancellationToken ct = default)
+    {
+        var data = await workspace.GetDataAsync(ct);
+        return data.Transactions
+            .GroupBy(t => t.CategoryId)
+            .ToDictionary(g => g.Key, g => g.Count());
+    }
+
     public async Task<Category> CreateAsync(CategoryInput input, CancellationToken ct = default)
     {
         var data = await workspace.GetDataAsync(ct);

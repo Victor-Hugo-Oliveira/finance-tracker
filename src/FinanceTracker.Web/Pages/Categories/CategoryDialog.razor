@@ -1,0 +1,118 @@
+@* Create or edit a category: name, type (only when creating), color and icon, with a live preview. *@
+@inject CategoryService Categories
+
+<EditForm Model="_model" OnValidSubmit="SaveAsync">
+    <DataAnnotationsValidator />
+    <MudDialog>
+        <DialogContent>
+            @if (Existing is null)
+            {
+                <MudRadioGroup T="TransactionType" @bind-Value="_model.Type" Class="mb-2">
+                    <MudRadio Value="TransactionType.Expense" Color="Color.Error">Despesa</MudRadio>
+                    <MudRadio Value="TransactionType.Income" Color="Color.Success">Receita</MudRadio>
+                </MudRadioGroup>
+            }
+            else
+            {
+                <MudText Typo="Typo.body2" Class="mud-text-secondary mb-3">
+                    Categoria de @Format.TypeName(_model.Type).ToLower(Format.PtBr). O tipo não pode ser alterado.
+                </MudText>
+            }
+
+            <MudTextField Label="Nome" @bind-Value="_model.Name" For="() => _model.Name" Immediate="true"
+                          Counter="Category.NameMaxLength" MaxLength="Category.NameMaxLength"
+                          Variant="Variant.Outlined" />
+
+            <MudText Typo="Typo.subtitle2" Class="mt-4 mb-1">Cor</MudText>
+            <div class="swatch-grid" role="radiogroup" aria-label="Cor">
+                @foreach (var color in CategoryPalette.Colors)
+                {
+                    var selected = string.Equals(color, _model.Color, StringComparison.OrdinalIgnoreCase);
+                    <button type="button" class="swatch @(selected ? "selected" : null)" style="background:@color"
+                            role="radio" aria-checked="@(selected ? "true" : "false")" aria-label="@color" title="@color"
+                            @onclick="() => _model.Color = color"></button>
+                }
+                <label class="swatch swatch-custom @(IsCustomColor ? "selected" : null)" title="Cor personalizada"
+                       style="@(IsCustomColor ? $"background:{_model.Color}" : null)">
+                    <MudIcon Icon="@Icons.Material.Filled.Colorize" Size="Size.Small" Style="@(IsCustomColor ? "color:#fff" : null)" />
+                    <input type="color" value="@_model.Color.ToLowerInvariant()" aria-label="Cor personalizada"
+                           @onchange="e => _model.Color = e.Value?.ToString()?.ToUpperInvariant() ?? _model.Color" />
+                </label>
+            </div>
+
+            <MudText Typo="Typo.subtitle2" Class="mt-4 mb-1">Ícone</MudText>
+            <div class="icon-grid" role="radiogroup" aria-label="Ícone">
+                @foreach (var (name, icon) in CategoryIcons.All)
+                {
+                    var selected = name == _model.Icon;
+                    <MudIconButton Icon="@icon" Size="Size.Medium" OnClick="() => _model.Icon = name"
+                                   Variant="@(selected ? Variant.Filled : Variant.Text)"
+                                   Style="@(selected ? $"background:{_model.Color}; color:#fff" : "color:var(--mud-palette-text-secondary)")"
+                                   role="radio" aria-checked="@(selected ? "true" : "false")" aria-label="@name" />
+                }
+            </div>
+
+            <MudPaper Class="pa-3 mt-4 d-flex align-center gap-2" Elevation="0" Outlined="true">
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">Prévia:</MudText>
+                <MudIcon Icon="@CategoryIcons.Get(_model.Icon)" Style="@($"color:{_model.Color}")" />
+                <MudText Typo="Typo.body1">@(string.IsNullOrWhiteSpace(_model.Name) ? "Nome da categoria" : _model.Name)</MudText>
+            </MudPaper>
+
+            @if (_error is not null)
+            {
+                <MudAlert Severity="Severity.Error" Dense="true" Class="mt-4">@_error</MudAlert>
+            }
+        </DialogContent>
+        <DialogActions>
+            <MudButton OnClick="() => Dialog.Cancel()" Disabled="_saving">Cancelar</MudButton>
+            <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Disabled="_saving">
+                @(Existing is null ? "Criar" : "Salvar")
+            </MudButton>
+        </DialogActions>
+    </MudDialog>
+</EditForm>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = default!;
+
+    /// <summary>The category to edit, or null to create a new one.</summary>
+    [Parameter] public Category? Existing { get; set; }
+
+    [Parameter] public TransactionType DefaultType { get; set; } = TransactionType.Expense;
+
+    private CategoryFormModel _model = new();
+    private string? _error;
+    private bool _saving;
+
+    private bool IsCustomColor => !CategoryPalette.Colors.Contains(_model.Color, StringComparer.OrdinalIgnoreCase);
+
+    protected override void OnInitialized()
+    {
+        _model = Existing is null
+            ? new CategoryFormModel { Type = DefaultType }
+            : CategoryFormModel.From(Existing);
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        _error = null;
+        try
+        {
+            if (Existing is null)
+                await Categories.CreateAsync(_model.ToInput());
+            else
+                await Categories.UpdateAsync(Existing.Id, _model.Name, _model.Color, _model.Icon);
+
+            Dialog.Close(DialogResult.Ok(true));
+        }
+        catch (DomainException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

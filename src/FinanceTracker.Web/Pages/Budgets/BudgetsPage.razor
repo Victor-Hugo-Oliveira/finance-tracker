@@ -1,0 +1,219 @@
+@page "/orcamentos"
+@inject BudgetService Budgets
+@inject CategoryService Categories
+@inject ReportService Reports
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject TimeProvider Time
+
+<PageTitle>Orçamentos · Finance Tracker</PageTitle>
+
+<div class="d-flex flex-wrap align-center justify-space-between gap-3 mb-4">
+    <MudText Typo="Typo.h4">Orçamentos</MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+               OnClick="() => NewAsync(null)" Disabled="!_loading && _withoutBudget.Count == 0">
+        Definir orçamento
+    </MudButton>
+</div>
+
+<div class="d-flex justify-center mb-4">
+    <MonthSelector Value="_month" ValueChanged="MonthChanged" />
+</div>
+
+@if (_status.Count > 0)
+{
+    var totalLimit = _status.Sum(s => s.Limit);
+    var totalSpent = _status.Sum(s => s.Spent);
+    var totalPercent = totalLimit == 0 ? 0 : (double)(totalSpent / totalLimit * 100m);
+
+    <MudPaper Class="pa-4 mb-4" Elevation="0" Outlined="true">
+        <div class="budget-numbers mb-2">
+            <MudText Typo="Typo.subtitle1">Total orçado</MudText>
+            <MudText Typo="Typo.subtitle1"><b>@Format.Money(totalSpent)</b> de @Format.Money(totalLimit)</MudText>
+        </div>
+        <MudProgressLinear Value="Math.Min(totalPercent, 100)" Color="ColorFor(totalPercent)" Size="Size.Large" Rounded="true"
+                           aria-label="Total usado" />
+        <div class="d-flex flex-wrap gap-2 mt-3">
+            @if (_exceeded > 0)
+            {
+                <MudChip T="string" Color="Color.Error" Size="Size.Small" Icon="@Icons.Material.Filled.Error">
+                    @_exceeded @(_exceeded == 1 ? "estourado" : "estourados")
+                </MudChip>
+            }
+            @if (_warning > 0)
+            {
+                <MudChip T="string" Color="Color.Warning" Size="Size.Small" Icon="@Icons.Material.Filled.Warning">
+                    @_warning em alerta
+                </MudChip>
+            }
+            @if (_exceeded == 0 && _warning == 0)
+            {
+                <MudChip T="string" Color="Color.Success" Size="Size.Small" Icon="@Icons.Material.Filled.CheckCircle">Tudo dentro do limite</MudChip>
+            }
+        </div>
+    </MudPaper>
+
+    <MudGrid Spacing="3" Class="mb-6">
+        @foreach (var item in _status)
+        {
+            var category = _categoryById.GetValueOrDefault(item.CategoryId);
+            <MudItem xs="12" md="6">
+                <MudPaper Class="pa-4" Elevation="0" Outlined="true"
+                          Style="@(item.Level == BudgetLevel.Exceeded ? "border-color: var(--mud-palette-error)" : null)">
+                    <div class="d-flex align-center justify-space-between mb-2">
+                        <CategoryChip Category="category" />
+                        <div class="d-flex align-center">
+                            @if (item.Level == BudgetLevel.Exceeded)
+                            {
+                                <MudChip T="string" Color="Color.Error" Size="Size.Small" Variant="Variant.Text">Estourado</MudChip>
+                            }
+                            else if (item.Level == BudgetLevel.Warning)
+                            {
+                                <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Text">Atenção</MudChip>
+                            }
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="() => EditAsync(item)"
+                                           aria-label="@($"Alterar orçamento de {item.CategoryName}")" title="Alterar limite" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="() => RemoveAsync(item)"
+                                           aria-label="@($"Remover orçamento de {item.CategoryName}")" title="Remover orçamento" />
+                        </div>
+                    </div>
+                    <MudProgressLinear Value="(double)Math.Min(item.PercentUsed, 100m)" Color="ColorFor(item.Level)" Size="Size.Medium"
+                                       Rounded="true" aria-label="@($"{item.PercentUsed:0.#}% usado")" />
+                    <div class="budget-numbers mt-2">
+                        <MudText Typo="Typo.body2">@Format.Money(item.Spent) de @Format.Money(item.Limit) · @item.PercentUsed.ToString("0.#", Format.PtBr)%</MudText>
+                        @if (item.Remaining >= 0)
+                        {
+                            <MudText Typo="Typo.body2" Class="mud-text-secondary">Restam @Format.Money(item.Remaining)</MudText>
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.body2" Color="Color.Error"><b>Acima em @Format.Money(-item.Remaining)</b></MudText>
+                        }
+                    </div>
+                </MudPaper>
+            </MudItem>
+        }
+    </MudGrid>
+}
+else if (!_loading)
+{
+    <MudPaper Class="pa-8 mb-6 d-flex flex-column align-center" Elevation="0" Outlined="true">
+        <MudIcon Icon="@Icons.Material.Filled.Savings" Size="Size.Large" Class="mb-2 mud-text-secondary" />
+        <MudText Class="mb-1">Nenhum orçamento definido ainda.</MudText>
+        <MudText Typo="Typo.body2" Class="mud-text-secondary mb-3" Align="Align.Center">
+            Defina um limite mensal para uma categoria de despesa e acompanhe quanto já foi gasto.
+        </MudText>
+        <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="() => NewAsync(null)">Definir o primeiro</MudButton>
+    </MudPaper>
+}
+
+@if (_withoutBudget.Count > 0)
+{
+    <MudText Typo="Typo.h6" Class="mb-2">Sem orçamento</MudText>
+    <MudPaper Elevation="0" Outlined="true">
+        <MudList T="Category" Dense="true">
+            @foreach (var category in _withoutBudget)
+            {
+                <MudListItem T="Category">
+                    <div class="d-flex align-center justify-space-between flex-wrap gap-2">
+                        <CategoryChip Category="category" />
+                        <div class="d-flex align-center gap-3">
+                            <MudText Typo="Typo.body2" Class="mud-text-secondary">Gasto no mês: @Format.Money(_spent.GetValueOrDefault(category.Id))</MudText>
+                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" OnClick="() => NewAsync(category.Id)"
+                                       aria-label="@($"Definir orçamento de {category.Name}")">
+                                Definir
+                            </MudButton>
+                        </div>
+                    </div>
+                </MudListItem>
+            }
+        </MudList>
+    </MudPaper>
+}
+
+@code {
+    private YearMonth _month;
+    private bool _loading = true;
+    private IReadOnlyList<BudgetStatus> _status = [];
+    private IReadOnlyList<Category> _withoutBudget = [];
+    private Dictionary<Guid, Category> _categoryById = [];
+    private Dictionary<Guid, decimal> _spent = [];
+    private int _exceeded;
+    private int _warning;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _month = YearMonth.From(Time.GetLocalNow().DateTime);
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        var expenseCategories = await Categories.GetAllAsync(TransactionType.Expense);
+        _categoryById = expenseCategories.ToDictionary(c => c.Id);
+
+        _status = await Budgets.GetStatusAsync(_month);
+        _exceeded = _status.Count(s => s.Level == BudgetLevel.Exceeded);
+        _warning = _status.Count(s => s.Level == BudgetLevel.Warning);
+
+        var withBudget = _status.Select(s => s.CategoryId).ToHashSet();
+        _withoutBudget = expenseCategories.Where(c => !withBudget.Contains(c.Id)).ToList();
+
+        var totals = await Reports.GetTotalsByCategoryAsync(_month, TransactionType.Expense);
+        _spent = totals.ToDictionary(t => t.CategoryId, t => t.Total);
+        _loading = false;
+    }
+
+    private Task MonthChanged(YearMonth month) { _month = month; return LoadAsync(); }
+
+    private static Color ColorFor(BudgetLevel level) => level switch
+    {
+        BudgetLevel.Exceeded => Color.Error,
+        BudgetLevel.Warning => Color.Warning,
+        _ => Color.Success
+    };
+
+    private static Color ColorFor(double percent) =>
+        percent > 100 ? Color.Error : percent >= (double)BudgetService.WarningThresholdPercent ? Color.Warning : Color.Success;
+
+    private Task NewAsync(Guid? preselected) => OpenDialogAsync("Definir orçamento", new DialogParameters<BudgetDialog>
+    {
+        { x => x.Options, _withoutBudget },
+        { x => x.PreselectedId, preselected },
+        { x => x.Month, _month },
+        { x => x.Spent, _spent }
+    }, "Orçamento definido.");
+
+    private Task EditAsync(BudgetStatus item) => OpenDialogAsync("Alterar orçamento", new DialogParameters<BudgetDialog>
+    {
+        { x => x.Existing, _categoryById.GetValueOrDefault(item.CategoryId) },
+        { x => x.CurrentLimit, item.Limit },
+        { x => x.Month, _month },
+        { x => x.Spent, _spent }
+    }, "Orçamento atualizado.");
+
+    private async Task OpenDialogAsync(string title, DialogParameters<BudgetDialog> parameters, string success)
+    {
+        var dialog = await DialogService.ShowAsync<BudgetDialog>(title, parameters,
+            new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true });
+        var result = await dialog.Result;
+        if (result is null || result.Canceled) return;
+
+        Snackbar.Add(success, Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task RemoveAsync(BudgetStatus item)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Remover orçamento",
+            $"Remover o limite de {Format.Money(item.Limit)} de \"{item.CategoryName}\"? As transações não são afetadas.",
+            yesText: "Remover", cancelText: "Cancelar");
+        if (confirmed != true) return;
+
+        await Budgets.RemoveAsync(item.CategoryId);
+        Snackbar.Add("Orçamento removido.", Severity.Info);
+        await LoadAsync();
+    }
+}

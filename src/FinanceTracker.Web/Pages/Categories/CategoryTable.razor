@@ -1,0 +1,63 @@
+@* One list of categories (all of the same type) with their usage and actions. *@
+
+<MudTable Items="Items" Hover="true" Breakpoint="Breakpoint.Sm" Elevation="0" Dense="true">
+    <HeaderContent>
+        <MudTh>Categoria</MudTh>
+        <MudTh Style="text-align:right">Transações</MudTh>
+        @if (ShowBudget)
+        {
+            <MudTh Style="text-align:right">Orçamento mensal</MudTh>
+        }
+        <MudTh Style="width:140px"></MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Categoria">
+            <CategoryChip Category="context" />
+            @if (context.IsArchived)
+            {
+                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Class="ml-2">Arquivada</MudChip>
+            }
+        </MudTd>
+        <MudTd DataLabel="Transações" Style="text-align:right">@Counts.GetValueOrDefault(context.Id)</MudTd>
+        @if (ShowBudget)
+        {
+            <MudTd DataLabel="Orçamento mensal" Style="text-align:right">
+                @(Limits.TryGetValue(context.Id, out var limit) ? Format.Money(limit) : "—")
+            </MudTd>
+        }
+        <MudTd Style="text-align:right; white-space:nowrap">
+            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="() => OnEdit.InvokeAsync(context)"
+                           aria-label="@($"Editar {context.Name}")" title="Editar" />
+            @if (context.IsArchived)
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.Unarchive" Size="Size.Small" OnClick="() => OnRestore.InvokeAsync(context)"
+                               aria-label="@($"Restaurar {context.Name}")" title="Restaurar" />
+            }
+            else
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.Archive" Size="Size.Small" OnClick="() => OnArchive.InvokeAsync(context)"
+                               aria-label="@($"Arquivar {context.Name}")" title="Arquivar" />
+            }
+            @{ var inUse = Counts.GetValueOrDefault(context.Id) > 0; }
+            <MudTooltip Text="@(inUse ? "Tem transações: arquive em vez de excluir" : "Excluir")">
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" Disabled="inUse"
+                               OnClick="() => OnDelete.InvokeAsync(context)" aria-label="@($"Excluir {context.Name}")" />
+            </MudTooltip>
+        </MudTd>
+    </RowTemplate>
+    <NoRecordsContent>
+        <MudText Class="pa-6 mud-text-secondary">Nenhuma categoria aqui.</MudText>
+    </NoRecordsContent>
+</MudTable>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<Category> Items { get; set; } = [];
+    [Parameter] public IReadOnlyDictionary<Guid, int> Counts { get; set; } = new Dictionary<Guid, int>();
+    [Parameter] public IReadOnlyDictionary<Guid, decimal> Limits { get; set; } = new Dictionary<Guid, decimal>();
+    [Parameter] public bool ShowBudget { get; set; }
+
+    [Parameter] public EventCallback<Category> OnEdit { get; set; }
+    [Parameter] public EventCallback<Category> OnArchive { get; set; }
+    [Parameter] public EventCallback<Category> OnRestore { get; set; }
+    [Parameter] public EventCallback<Category> OnDelete { get; set; }
+}
