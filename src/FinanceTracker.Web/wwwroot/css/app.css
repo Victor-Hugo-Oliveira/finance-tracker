@@ -49,7 +49,7 @@
     }
 
         .loading-progress circle:last-child {
-            stroke: #1b6ec2;
+            stroke: #2E7D32;
             stroke-dasharray: calc(3.141 * var(--blazor-load-percentage, 0%) * 0.8), 500%;
             transition: stroke-dasharray 0.05s ease-in-out;
         }
@@ -119,3 +119,8 @@ code {
 @media (max-width: 599px) {
     .trend-axis-label { font-size: 21px; }
 }
+
+/* Loading screen in dark mode (set by the inline script in index.html). */
+html.boot-dark body:has(.loading-progress) { background: #121512; color: #e0e0e0; }
+html.boot-dark .loading-progress circle { stroke: #2a302a; }
+html.boot-dark .loading-progress circle:last-child { stroke: #66BB6A; }

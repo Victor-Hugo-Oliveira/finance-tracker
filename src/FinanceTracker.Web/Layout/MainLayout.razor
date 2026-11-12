@@ -1,6 +1,7 @@
 ﻿@inherits LayoutComponentBase
+@inject ThemePreference ThemePreference
 
-<MudThemeProvider Theme="_theme" />
+<MudThemeProvider @ref="_themeProvider" Theme="_theme" IsDarkMode="_isDarkMode" />
 <MudPopoverProvider />
 <MudDialogProvider MaxWidth="MaxWidth.Small" FullWidth="true" CloseOnEscapeKey="true" />
 <MudSnackbarProvider />
@@ -11,6 +12,15 @@
                        OnClick="() => _drawerOpen = !_drawerOpen" aria-label="Abrir menu" />
         <MudIcon Icon="@Icons.Material.Filled.AccountBalanceWallet" Class="ml-2 mr-2" />
         <MudText Typo="Typo.h6">Finance Tracker</MudText>
+        <MudSpacer />
+        <MudTooltip Text="@(_isDarkMode ? "Usar tema claro" : "Usar tema escuro")">
+            <MudIconButton Icon="@(_isDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
+                           Color="Color.Inherit" OnClick="ToggleThemeAsync"
+                           aria-label="@(_isDarkMode ? "Usar tema claro" : "Usar tema escuro")" />
+        </MudTooltip>
+        <MudIconButton Icon="@Icons.Custom.Brands.GitHub" Color="Color.Inherit" Edge="Edge.End"
+                       Href="https://github.com/Victor-Hugo-Oliveira/finance-tracker" Target="_blank"
+                       aria-label="Código-fonte no GitHub" title="Código-fonte no GitHub" />
     </MudAppBar>
 
     <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="1" Variant="DrawerVariant.Responsive">
@@ -25,7 +35,37 @@
 </MudLayout>
 
 @code {
+    private MudThemeProvider _themeProvider = default!;
     private bool _drawerOpen = true;
+    private bool _isDarkMode;
+    private bool _userChoseTheme;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        // A saved choice wins; otherwise follow the operating system and keep following it.
+        var saved = await ThemePreference.LoadAsync();
+        _userChoseTheme = saved is not null;
+        _isDarkMode = saved ?? await _themeProvider.GetSystemDarkModeAsync();
+        await _themeProvider.WatchSystemDarkModeAsync(SystemThemeChanged);
+        StateHasChanged();
+    }
+
+    private Task SystemThemeChanged(bool dark)
+    {
+        if (_userChoseTheme) return Task.CompletedTask;
+        _isDarkMode = dark;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private async Task ToggleThemeAsync()
+    {
+        _isDarkMode = !_isDarkMode;
+        _userChoseTheme = true;
+        await ThemePreference.SaveAsync(_isDarkMode);
+    }
 
     private readonly MudTheme _theme = new()
     {
@@ -37,6 +77,19 @@
             Success = "#2E7D32",
             Error = "#C62828",
             Background = "#F6F8F6"
+        },
+        // Dark mode gets its own lighter steps so green/red keep their contrast on a dark surface.
+        PaletteDark = new PaletteDark
+        {
+            Primary = "#66BB6A",
+            Secondary = "#4DB6AC",
+            AppbarBackground = "#1B3A1D",
+            Success = "#66BB6A",
+            Error = "#EF5350",
+            Warning = "#FFA726",
+            Background = "#121512",
+            Surface = "#1C201C",
+            DrawerBackground = "#1C201C"
         },
         Typography = new Typography
         {

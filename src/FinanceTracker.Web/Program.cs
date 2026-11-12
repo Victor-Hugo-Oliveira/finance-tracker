@@ -35,5 +35,6 @@ builder.Services.AddSingleton<ReportService>();
 builder.Services.AddSingleton<ImportService>();
 builder.Services.AddSingleton<BackupService>();
 builder.Services.AddScoped<FileDownloader>();
+builder.Services.AddScoped<ThemePreference>();
 
 await builder.Build().RunAsync();

@@ -1,0 +1,44 @@
+@page "/exemplo"
+@* Direct link for the README / portfolio: opens the app already filled with sample data.
+   Never overwrites real data without asking. *@
+@inject BackupService Backup
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<PageTitle>Dados de exemplo · Finance Tracker</PageTitle>
+
+@if (_existing > 0)
+{
+    <MudPaper Class="pa-8 d-flex flex-column align-center" Elevation="0" Outlined="true">
+        <MudIcon Icon="@Icons.Material.Filled.AutoAwesome" Size="Size.Large" Color="Color.Primary" Class="mb-2" />
+        <MudText Typo="Typo.h6" Class="mb-1">Você já tem dados neste navegador</MudText>
+        <MudText Class="mud-text-secondary mb-4" Align="Align.Center">
+            São @_existing transações. Carregar os dados de exemplo substituiria tudo.
+        </MudText>
+        <div class="d-flex flex-wrap gap-2 justify-center">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="">Manter meus dados</MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="ReplaceAsync">Substituir pelos dados de exemplo</MudButton>
+        </div>
+    </MudPaper>
+}
+else
+{
+    <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+}
+
+@code {
+    private int _existing = -1;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _existing = (await Backup.GetSummaryAsync()).Transactions;
+        if (_existing == 0) await ReplaceAsync();
+    }
+
+    private async Task ReplaceAsync()
+    {
+        await Backup.LoadSampleDataAsync();
+        Snackbar.Add("Dados de exemplo carregados.", Severity.Success);
+        Navigation.NavigateTo("", replace: true);
+    }
+}

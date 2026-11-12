@@ -58,9 +58,9 @@ public static class SampleData
         }
 
         data.Budgets.Add(new Budget(Cat("Alimentação").Id, 1100m));
-        data.Budgets.Add(new Budget(Cat("Transporte").Id, 250m));
+        data.Budgets.Add(new Budget(Cat("Transporte").Id, 140m));  // usually exceeded
         data.Budgets.Add(new Budget(Cat("Lazer").Id, 300m));
-        data.Budgets.Add(new Budget(Cat("Assinaturas").Id, 100m));
+        data.Budgets.Add(new Budget(Cat("Assinaturas").Id, 85m));   // always in the warning zone
         return data;
     }
 }

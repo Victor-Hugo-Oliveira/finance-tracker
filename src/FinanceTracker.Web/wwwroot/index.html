@@ -15,6 +15,15 @@
     <link href="_content/MudBlazor/MudBlazor.min.css" rel="stylesheet" />
     <link rel="stylesheet" href="css/app.css" />
     <script type="importmap"></script>
+    <script>
+        // Paint the loading screen in the right theme before Blazor starts (avoids a white flash in dark mode).
+        (function () {
+            var saved = null;
+            try { saved = localStorage.getItem("finance-tracker:theme"); } catch (e) { }
+            var dark = saved ? saved === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+            if (dark) document.documentElement.classList.add("boot-dark");
+        })();
+    </script>
 </head>
 
 <body>
