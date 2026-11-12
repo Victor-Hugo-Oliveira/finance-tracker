@@ -97,3 +97,25 @@ code {
 
 /* Budgets */
 .budget-numbers { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; }
+
+/* Charts: text and grid use theme tokens; data colors come from the data. */
+.donut-chart, .trend-chart { width: 100%; height: auto; display: block; overflow: visible; }
+.donut-chart { max-width: 240px; margin: 0 auto; }
+.donut-slice { transition: opacity .15s; }
+.donut-chart:hover .donut-slice { opacity: .55; }
+.donut-chart:hover .donut-slice:hover { opacity: 1; }
+.donut-center-title { font-size: 11px; fill: var(--mud-palette-text-secondary); }
+.donut-center-value { font-size: 17px; font-weight: 500; fill: var(--mud-palette-text-primary); }
+.trend-grid { stroke: var(--mud-palette-lines-default); stroke-width: 1; }
+.trend-baseline { stroke: var(--mud-palette-text-secondary); stroke-width: 1; }
+.trend-axis-label { font-size: 12px; fill: var(--mud-palette-text-secondary); }
+.trend-axis-label.current { font-weight: 700; fill: var(--mud-palette-text-primary); }
+.trend-hit { fill: transparent; }
+.trend-column:hover .trend-hit { fill: var(--mud-palette-action-default-hover); }
+.legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+.legend-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+.legend-row .legend-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* On phones the SVG shrinks to ~half size, so its text is drawn larger to stay readable. */
+@media (max-width: 599px) {
+    .trend-axis-label { font-size: 21px; }
+}

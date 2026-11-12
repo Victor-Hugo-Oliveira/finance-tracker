@@ -1,0 +1,97 @@
+@* Income vs. expenses per month as grouped bars on one money axis.
+   Hovering a month (the whole column is the hit target) shows both values and the balance. *@
+@using System.Globalization
+
+<svg viewBox="0 0 @Width @Height" class="trend-chart" role="img" aria-label="@AriaLabel">
+    @* Grid and Y axis labels *@
+    @foreach (var tick in _ticks)
+    {
+        var y = Y(tick);
+        <g>
+            <line x1="@PadLeft" x2="@(Width - PadRight)" y1="@Num(y)" y2="@Num(y)" class="trend-grid" />
+            <text x="@(PadLeft - 8)" y="@Num(y + 4)" text-anchor="end" class="trend-axis-label">@Format.CompactMoney(tick)</text>
+        </g>
+    }
+
+    @for (var i = 0; i < Months.Count; i++)
+    {
+        var m = Months[i];
+        var x0 = PadLeft + i * _slot;
+        var center = x0 + _slot / 2;
+        var isCurrent = Highlight is { } h && h == m.Month;
+
+        <g class="trend-column @(isCurrent ? "current" : null)">
+            <rect x="@Num(x0)" y="@PadTop" width="@Num(_slot)" height="@Num(PlotHeight)" class="trend-hit" />
+            <path d="@Bar(center - _barWidth - 1, m.Income)" fill="var(--mud-palette-success)" />
+            <path d="@Bar(center + 1, m.Expenses)" fill="var(--mud-palette-error)" />
+            <text x="@Num(center)" y="@(Height - 8)" text-anchor="middle" class="trend-axis-label @(isCurrent ? "current" : null)">
+                @MonthLabel(m.Month)
+            </text>
+            <title>@Format.Month(m.Month)&#10;Receitas: @Format.Money(m.Income)&#10;Despesas: @Format.Money(m.Expenses)&#10;Saldo: @Format.Money(m.Balance)</title>
+        </g>
+    }
+
+    <line x1="@PadLeft" x2="@(Width - PadRight)" y1="@Num(Y(0))" y2="@Num(Y(0))" class="trend-baseline" />
+</svg>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<MonthSummary> Months { get; set; } = [];
+
+    /// <summary>Month drawn with a bold label (usually the selected one).</summary>
+    [Parameter] public YearMonth? Highlight { get; set; }
+
+    [Parameter] public string AriaLabel { get; set; } = "Receitas e despesas por mês";
+
+    private const double Width = 600, Height = 260;
+    private const double PadLeft = 92, PadRight = 8, PadTop = 12, PadBottom = 30;
+    private const double PlotHeight = Height - PadTop - PadBottom;
+
+    private List<decimal> _ticks = [];
+    private decimal _max = 1;
+    private double _slot;
+    private double _barWidth;
+
+    protected override void OnParametersSet()
+    {
+        var highest = Months.Count == 0 ? 0 : Months.Max(m => Math.Max(m.Income, m.Expenses));
+        var step = NiceStep(highest / 4);
+        _max = step * Math.Max(1, Math.Ceiling(highest / step));
+        _ticks = [];
+        for (var t = 0m; t <= _max; t += step) _ticks.Add(t);
+
+        _slot = (Width - PadLeft - PadRight) / Math.Max(Months.Count, 1);
+        _barWidth = Math.Min(28, _slot * 0.32);
+    }
+
+    /// <summary>1, 2 or 5 times a power of ten, so axis labels are round numbers.</summary>
+    private static decimal NiceStep(decimal rough)
+    {
+        if (rough <= 0) return 100;
+        var power = (decimal)Math.Pow(10, Math.Floor(Math.Log10((double)rough)));
+        var fraction = rough / power;
+        var nice = fraction <= 1 ? 1 : fraction <= 2 ? 2 : fraction <= 5 ? 5 : 10;
+        return nice * power;
+    }
+
+    private double Y(decimal value) => PadTop + PlotHeight - (double)(value / _max) * PlotHeight;
+
+    /// <summary>Bar anchored to the baseline with only the top corners rounded.</summary>
+    private string Bar(double x, decimal value)
+    {
+        if (value <= 0) return string.Empty;
+        var top = Y(value);
+        var bottom = Y(0);
+        var r = Math.Min(4, Math.Min(_barWidth / 2, bottom - top));
+        var w = _barWidth;
+        return $"M{Num(x)},{Num(bottom)} V{Num(top + r)} Q{Num(x)},{Num(top)} {Num(x + r)},{Num(top)} " +
+               $"H{Num(x + w - r)} Q{Num(x + w)},{Num(top)} {Num(x + w)},{Num(top + r)} V{Num(bottom)} Z";
+    }
+
+    private static string MonthLabel(YearMonth month)
+    {
+        var name = month.FirstDay.ToString("MMM", Format.PtBr).TrimEnd('.');
+        return month.Month == 1 ? $"{name}/{month.Year % 100:00}" : name;
+    }
+
+    private static string Num(double value) => value.ToString("0.##", CultureInfo.InvariantCulture);
+}

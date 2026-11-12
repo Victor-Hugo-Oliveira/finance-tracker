@@ -1,0 +1,50 @@
+@* Donut chart drawn as SVG circle strokes, one per slice, with a total in the middle.
+   Colors come from the data (each category's own color), so a slice keeps its color across months. *@
+
+<svg viewBox="0 0 200 200" class="donut-chart" role="img" aria-label="@AriaLabel">
+    <circle cx="100" cy="100" r="@Radius" fill="none" stroke="var(--mud-palette-lines-default)" stroke-width="@Thickness" />
+    @foreach (var arc in _arcs)
+    {
+        <circle cx="100" cy="100" r="@Radius" fill="none" stroke="@arc.Slice.Color" stroke-width="@Thickness"
+                stroke-dasharray="@($"{Num(arc.Length)} {Num(Circumference)}")" stroke-dashoffset="@Num(-arc.Offset)"
+                transform="rotate(-90 100 100)" class="donut-slice">
+            <title>@arc.Slice.Label: @Format.Money(arc.Slice.Value) (@arc.Slice.Percent.ToString("0.#", Format.PtBr)%)</title>
+        </circle>
+    }
+    <text x="100" y="94" text-anchor="middle" class="donut-center-title">@CenterTitle</text>
+    <text x="100" y="116" text-anchor="middle" class="donut-center-value">@CenterValue</text>
+</svg>
+
+@code {
+    public record Slice(string Label, decimal Value, string Color, decimal Percent);
+
+    [Parameter, EditorRequired] public IReadOnlyList<Slice> Slices { get; set; } = [];
+    [Parameter] public string CenterTitle { get; set; } = string.Empty;
+    [Parameter] public string CenterValue { get; set; } = string.Empty;
+    [Parameter] public string AriaLabel { get; set; } = "Gráfico de rosca";
+
+    private const double Radius = 80;
+    private const double Thickness = 26;
+    private const double Gap = 2; // surface gap between slices
+    private static readonly double Circumference = 2 * Math.PI * Radius;
+
+    private List<(Slice Slice, double Offset, double Length)> _arcs = [];
+
+    protected override void OnParametersSet()
+    {
+        _arcs = [];
+        var total = Slices.Sum(s => s.Value);
+        if (total <= 0) return;
+
+        var gap = Slices.Count > 1 ? Gap : 0;
+        double offset = 0;
+        foreach (var slice in Slices)
+        {
+            var full = (double)(slice.Value / total) * Circumference;
+            _arcs.Add((slice, offset, Math.Max(full - gap, 0.5)));
+            offset += full;
+        }
+    }
+
+    private static string Num(double value) => value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+}

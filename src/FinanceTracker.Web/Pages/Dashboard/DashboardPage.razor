@@ -1,0 +1,278 @@
+@page "/"
+@inject ReportService Reports
+@inject BudgetService Budgets
+@inject TransactionService Transactions
+@inject CategoryService Categories
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject TimeProvider Time
+
+<PageTitle>Dashboard · Finance Tracker</PageTitle>
+
+<div class="d-flex flex-wrap align-center justify-space-between gap-3 mb-4">
+    <MudText Typo="Typo.h4">Dashboard</MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="NewTransactionAsync">
+        Nova transação
+    </MudButton>
+</div>
+
+<div class="d-flex justify-center mb-4">
+    <MonthSelector Value="_month" ValueChanged="MonthChanged" />
+</div>
+
+@if (_loading)
+{
+    <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+}
+else if (!_hasAnyTransaction)
+{
+    <MudPaper Class="pa-8 d-flex flex-column align-center" Elevation="0" Outlined="true">
+        <MudIcon Icon="@Icons.Material.Filled.Insights" Size="Size.Large" Class="mb-2 mud-text-secondary" />
+        <MudText Typo="Typo.h6" Class="mb-1">Bem-vindo ao Finance Tracker</MudText>
+        <MudText Class="mud-text-secondary mb-4" Align="Align.Center">
+            Lance sua primeira receita ou despesa para ver aqui o resumo do mês, os gráficos e seus orçamentos.
+        </MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="NewTransactionAsync">Adicionar transação</MudButton>
+    </MudPaper>
+}
+else
+{
+    <MudGrid Spacing="3" Class="mb-4">
+        <MudItem xs="12" sm="6" lg="3">
+            <SummaryCard Title="Receitas do mês" Value="_summary.Income" Icon="@Icons.Material.Filled.ArrowUpward" Color="Color.Success" />
+        </MudItem>
+        <MudItem xs="12" sm="6" lg="3">
+            <SummaryCard Title="Despesas do mês" Value="_summary.Expenses" Icon="@Icons.Material.Filled.ArrowDownward" Color="Color.Error" />
+        </MudItem>
+        <MudItem xs="12" sm="6" lg="3">
+            <SummaryCard Title="Saldo do mês" Value="_summary.Balance" Icon="@Icons.Material.Filled.AccountBalanceWallet"
+                         Color="@(_summary.Balance < 0 ? Color.Error : Color.Primary)" />
+        </MudItem>
+        <MudItem xs="12" sm="6" lg="3">
+            <SummaryCard Title="Saldo acumulado" Value="_overall" Icon="@Icons.Material.Filled.AccountBalance"
+                         Color="@(_overall < 0 ? Color.Error : Color.Primary)" />
+        </MudItem>
+    </MudGrid>
+
+    @if (_summary.SavingsRate is { } rate)
+    {
+        <MudAlert Severity="@(rate >= 0 ? Severity.Success : Severity.Warning)" Dense="true" Class="mb-4" Variant="Variant.Outlined">
+            @if (rate >= 0)
+            {
+                <span>Você guardou <b>@rate.ToString("0.#", Format.PtBr)%</b> do que recebeu em @Format.Month(_month).ToLower(Format.PtBr).</span>
+            }
+            else
+            {
+                <span>Você gastou <b>@Format.Money(-_summary.Balance)</b> a mais do que recebeu em @Format.Month(_month).ToLower(Format.PtBr).</span>
+            }
+        </MudAlert>
+    }
+
+    <MudGrid Spacing="3" Class="mb-4">
+        @* Expenses by category *@
+        <MudItem xs="12" lg="5">
+            <MudPaper Class="pa-4" Elevation="0" Outlined="true" Style="height:100%">
+                <MudText Typo="Typo.h6" Class="mb-3">Despesas por categoria</MudText>
+                @if (_slices.Count == 0)
+                {
+                    <MudText Class="mud-text-secondary pa-6" Align="Align.Center">Nenhuma despesa neste mês.</MudText>
+                }
+                else
+                {
+                    <DonutChart Slices="_slices" CenterTitle="Total" CenterValue="@Format.Money(_summary.Expenses)"
+                                AriaLabel="@($"Despesas por categoria em {Format.Month(_month)}")" />
+                    <div class="mt-4">
+                        @foreach (var slice in _slices)
+                        {
+                            <div class="legend-row">
+                                <span class="legend-dot" style="background:@slice.Color"></span>
+                                <MudText Typo="Typo.body2" Class="legend-name">@slice.Label</MudText>
+                                <MudText Typo="Typo.body2" Class="mud-text-secondary">@slice.Percent.ToString("0.#", Format.PtBr)%</MudText>
+                                <MudText Typo="Typo.body2" Style="min-width:92px; text-align:right">@Format.Money(slice.Value)</MudText>
+                            </div>
+                        }
+                    </div>
+                }
+            </MudPaper>
+        </MudItem>
+
+        @* Six-month trend *@
+        <MudItem xs="12" lg="7">
+            <MudPaper Class="pa-4" Elevation="0" Outlined="true" Style="height:100%">
+                <div class="d-flex flex-wrap align-center justify-space-between mb-3 gap-2">
+                    <MudText Typo="Typo.h6">Últimos 6 meses</MudText>
+                    <div class="d-flex gap-4">
+                        <span class="d-inline-flex align-center gap-1"><span class="legend-dot" style="background:var(--mud-palette-success)"></span><MudText Typo="Typo.body2">Receitas</MudText></span>
+                        <span class="d-inline-flex align-center gap-1"><span class="legend-dot" style="background:var(--mud-palette-error)"></span><MudText Typo="Typo.body2">Despesas</MudText></span>
+                    </div>
+                </div>
+                <TrendChart Months="_trend" Highlight="_month" />
+                <MudSimpleTable Dense="true" Elevation="0" Class="mt-3 trend-table">
+                    <thead>
+                        <tr><th>Mês</th><th class="d-none d-sm-table-cell" style="text-align:right">Receitas</th><th class="d-none d-sm-table-cell" style="text-align:right">Despesas</th><th style="text-align:right">Saldo</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var m in _trend.Reverse())
+                        {
+                            <tr style="@(m.Month == _month ? "font-weight:600" : null)">
+                                <td>@Format.ShortMonth(m.Month)</td>
+                                <td class="d-none d-sm-table-cell" style="text-align:right">@Format.Money(m.Income)</td>
+                                <td class="d-none d-sm-table-cell" style="text-align:right">@Format.Money(m.Expenses)</td>
+                                <td style="text-align:right" class="@(m.Balance < 0 ? "amount-expense" : null)">@Format.Money(m.Balance)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </MudSimpleTable>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+    <MudGrid Spacing="3">
+        @* Budgets *@
+        <MudItem xs="12" lg="5">
+            <MudPaper Class="pa-4" Elevation="0" Outlined="true" Style="height:100%">
+                <div class="d-flex align-center justify-space-between mb-3">
+                    <MudText Typo="Typo.h6">Orçamentos</MudText>
+                    <MudButton Href="orcamentos" Variant="Variant.Text" Size="Size.Small" Color="Color.Primary">Ver todos</MudButton>
+                </div>
+                @if (_budgets.Count == 0)
+                {
+                    <MudText Class="mud-text-secondary mb-2">Nenhum orçamento definido.</MudText>
+                    <MudButton Href="orcamentos" Variant="Variant.Outlined" Size="Size.Small" Color="Color.Primary">Definir orçamentos</MudButton>
+                }
+                else
+                {
+                    @foreach (var b in _budgets.Take(5))
+                    {
+                        <div class="mb-3">
+                            <div class="budget-numbers mb-1">
+                                <MudText Typo="Typo.body2">
+                                    @b.CategoryName
+                                    @if (b.Level == BudgetLevel.Exceeded)
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Filled.Error" Color="Color.Error" Size="Size.Small" Style="vertical-align:middle" title="Estourado" />
+                                    }
+                                    else if (b.Level == BudgetLevel.Warning)
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Filled.Warning" Color="Color.Warning" Size="Size.Small" Style="vertical-align:middle" title="Atenção" />
+                                    }
+                                </MudText>
+                                <MudText Typo="Typo.body2" Class="mud-text-secondary">@Format.Money(b.Spent) de @Format.Money(b.Limit)</MudText>
+                            </div>
+                            <MudProgressLinear Value="(double)Math.Min(b.PercentUsed, 100m)" Rounded="true" Size="Size.Small"
+                                               Color="@(b.Level switch { BudgetLevel.Exceeded => Color.Error, BudgetLevel.Warning => Color.Warning, _ => Color.Success })"
+                                               aria-label="@($"{b.CategoryName}: {b.PercentUsed:0.#}% usado")" />
+                        </div>
+                    }
+                    @if (_budgets.Count > 5)
+                    {
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">e mais @(_budgets.Count - 5)…</MudText>
+                    }
+                }
+            </MudPaper>
+        </MudItem>
+
+        @* Latest transactions *@
+        <MudItem xs="12" lg="7">
+            <MudPaper Class="pa-4" Elevation="0" Outlined="true" Style="height:100%">
+                <div class="d-flex align-center justify-space-between mb-2">
+                    <MudText Typo="Typo.h6">Últimas transações</MudText>
+                    <MudButton Href="transacoes" Variant="Variant.Text" Size="Size.Small" Color="Color.Primary">Ver todas</MudButton>
+                </div>
+                @if (_recent.Count == 0)
+                {
+                    <MudText Class="mud-text-secondary">Nenhuma transação neste mês.</MudText>
+                }
+                else
+                {
+                    <MudList T="Transaction" Dense="true" Padding="false">
+                        @foreach (var t in _recent)
+                        {
+                            <MudListItem T="Transaction">
+                                <div class="d-flex align-center gap-3">
+                                    <MudIcon Icon="@CategoryIcons.Get(_categoryById.GetValueOrDefault(t.CategoryId)?.Icon)"
+                                             Style="@($"color:{_categoryById.GetValueOrDefault(t.CategoryId)?.Color}")" />
+                                    <div style="flex:1; min-width:0">
+                                        <MudText Typo="Typo.body2" Style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap">@t.Description</MudText>
+                                        <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                            @Format.Date(t.Date) · @(_categoryById.GetValueOrDefault(t.CategoryId)?.Name ?? "Sem categoria")
+                                        </MudText>
+                                    </div>
+                                    <span class="@(t.Type == TransactionType.Income ? "amount-income" : "amount-expense")">@Format.SignedMoney(t)</span>
+                                </div>
+                            </MudListItem>
+                        }
+                    </MudList>
+                }
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    private const int MaxSlices = 6;
+    private const string OtherColor = "#9E9E9E";
+
+    private YearMonth _month;
+    private bool _loading = true;
+    private bool _hasAnyTransaction;
+    private MonthSummary _summary = new(default, 0, 0, 0);
+    private decimal _overall;
+    private List<DonutChart.Slice> _slices = [];
+    private IReadOnlyList<MonthSummary> _trend = [];
+    private IReadOnlyList<BudgetStatus> _budgets = [];
+    private IReadOnlyList<Transaction> _recent = [];
+    private Dictionary<Guid, Category> _categoryById = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _month = YearMonth.From(Time.GetLocalNow().DateTime);
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _hasAnyTransaction = (await Transactions.QueryAsync(new TransactionFilter())).Count > 0;
+        _categoryById = (await Categories.GetAllAsync(includeArchived: true)).ToDictionary(c => c.Id);
+
+        _summary = await Reports.GetMonthSummaryAsync(_month);
+        _overall = await Reports.GetOverallBalanceAsync();
+        _slices = ToSlices(await Reports.GetTotalsByCategoryAsync(_month, TransactionType.Expense));
+        _trend = await Reports.GetTrendAsync(_month, 6);
+        _budgets = await Budgets.GetStatusAsync(_month);
+        _recent = (await Transactions.QueryAsync(new TransactionFilter { Month = _month })).Take(5).ToList();
+        _loading = false;
+    }
+
+    /// <summary>Largest categories get their own slice; the rest fold into "Outras" so the chart stays readable.</summary>
+    private static List<DonutChart.Slice> ToSlices(IReadOnlyList<CategoryTotal> totals)
+    {
+        var shown = totals.Count > MaxSlices ? totals.Take(MaxSlices - 1).ToList() : totals.ToList();
+        var slices = shown.Select(t => Slice(t.CategoryName, t.Total, t.Color, t.Percentage)).ToList();
+
+        var rest = totals.Skip(shown.Count).ToList();
+        if (rest.Count > 0)
+            slices.Add(Slice($"Outras ({rest.Count})", rest.Sum(r => r.Total), OtherColor, rest.Sum(r => r.Percentage)));
+
+        return slices;
+    }
+
+    private static DonutChart.Slice Slice(string name, decimal total, string color, decimal percent) =>
+        new(name, total, color, percent);
+
+    private Task MonthChanged(YearMonth month)
+    {
+        _month = month;
+        return LoadAsync();
+    }
+
+    private async Task NewTransactionAsync()
+    {
+        var dialog = await DialogService.ShowAsync<FinanceTracker.Web.Pages.Transactions.TransactionDialog>("Nova transação");
+        var result = await dialog.Result;
+        if (result is null || result.Canceled) return;
+
+        Snackbar.Add("Transação adicionada.", Severity.Success);
+        await LoadAsync();
+    }
+}
