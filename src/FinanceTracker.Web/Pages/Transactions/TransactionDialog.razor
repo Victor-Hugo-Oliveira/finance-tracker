@@ -14,8 +14,8 @@
 
             <MudGrid Spacing="2">
                 <MudItem xs="12" sm="6">
-                    <MudNumericField T="decimal?" Label="Valor" @bind-Value="_model.Amount" For="() => _model.Amount"
-                                     Adornment="Adornment.Start" AdornmentText="R$" Format="N2" Min="0" HideSpinButtons="true"
+                    <MudTextField T="decimal?" Label="Valor" @bind-Value="_model.Amount" For="() => _model.Amount" Converter="MoneyConverter.Instance"
+                                     Adornment="Adornment.Start" AdornmentText="R$" InputMode="@(InputMode.@decimal)" Placeholder="0,00"
                                      Variant="Variant.Outlined" AutoFocus="true" />
                 </MudItem>
                 <MudItem xs="12" sm="6">
@@ -30,7 +30,7 @@
                 </MudItem>
                 <MudItem xs="12">
                     <MudSelect T="Guid?" Label="Categoria" @bind-Value="_model.CategoryId" For="() => _model.CategoryId"
-                               Variant="Variant.Outlined" AnchorOrigin="Origin.BottomCenter">
+                               Variant="Variant.Outlined">
                         @foreach (var category in AvailableCategories)
                         {
                             <MudSelectItem T="Guid?" Value="category.Id">

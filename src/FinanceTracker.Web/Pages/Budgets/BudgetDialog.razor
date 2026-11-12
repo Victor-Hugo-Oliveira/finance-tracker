@@ -9,7 +9,7 @@
             @if (Existing is null)
             {
                 <MudSelect T="Guid?" Label="Categoria" @bind-Value="_model.CategoryId" For="() => _model.CategoryId"
-                           Variant="Variant.Outlined" AnchorOrigin="Origin.BottomCenter" Class="mb-3">
+                           Variant="Variant.Outlined" Class="mb-3">
                     @foreach (var category in Options)
                     {
                         <MudSelectItem T="Guid?" Value="category.Id"><CategoryChip Category="category" /></MudSelectItem>
@@ -21,8 +21,8 @@
                 <div class="mb-3"><CategoryChip Category="Existing" /></div>
             }
 
-            <MudNumericField T="decimal?" Label="Limite mensal" @bind-Value="_model.Limit" For="() => _model.Limit"
-                             Adornment="Adornment.Start" AdornmentText="R$" Format="N2" Min="0" HideSpinButtons="true"
+            <MudTextField T="decimal?" Label="Limite mensal" @bind-Value="_model.Limit" For="() => _model.Limit" Converter="MoneyConverter.Instance"
+                             Adornment="Adornment.Start" AdornmentText="R$" InputMode="@(InputMode.@decimal)" Placeholder="0,00"
                              Variant="Variant.Outlined" />
 
             @if (_model.CategoryId is { } id)

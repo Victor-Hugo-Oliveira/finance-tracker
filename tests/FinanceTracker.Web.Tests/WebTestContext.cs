@@ -24,6 +24,10 @@ public abstract class WebTestContext : BunitContext
 
     protected FakeTimeProvider Clock { get; } = new(Now);
 
+    /// <summary>Where MudBlazor renders open lists and dialogs, for assertions about them.</summary>
+    protected IRenderedComponent<MudPopoverProvider> Popovers { get; }
+    protected IRenderedComponent<MudDialogProvider> Dialogs { get; }
+
     protected WebTestContext()
     {
         CultureInfo.CurrentCulture = Format.PtBr;
@@ -44,8 +48,8 @@ public abstract class WebTestContext : BunitContext
         Services.AddScoped<ThemePreference>();
 
         // Pages use selects, tooltips and dialogs, which need these providers on screen.
-        Render<MudPopoverProvider>();
-        Render<MudDialogProvider>();
+        Popovers = Render<MudPopoverProvider>();
+        Dialogs = Render<MudDialogProvider>();
     }
 
     /// <summary>

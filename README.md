@@ -3,7 +3,7 @@
 [![CI & deploy](https://github.com/Victor-Hugo-Oliveira/finance-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/Victor-Hugo-Oliveira/finance-tracker/actions/workflows/ci.yml)
 ![.NET 10](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet)
 ![Blazor WebAssembly](https://img.shields.io/badge/Blazor-WebAssembly-512BD4?logo=blazor)
-![Tests](https://img.shields.io/badge/tests-149%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-161%20passing-brightgreen)
 
 A personal finance app (in Brazilian Portuguese) built with **Blazor WebAssembly** and **MudBlazor**.
 Record income and expenses, organize them in categories, set monthly budgets and follow everything
@@ -73,7 +73,7 @@ flowchart LR
 | `FinanceTracker.Core` | Domain entities and their rules, services, reports, CSV/backup. **No reference to Blazor or the browser**, so all business logic is tested with plain unit tests. |
 | `FinanceTracker.Web` | Blazor pages, MudBlazor UI, SVG charts, `localStorage` adapter, file download/upload. |
 | `FinanceTracker.Core.Tests` | 127 unit tests for rules, services, reports, CSV parsing, import and backup. |
-| `FinanceTracker.Web.Tests` | 22 bUnit tests that render components and whole pages against the real services. |
+| `FinanceTracker.Web.Tests` | 34 bUnit and unit tests that render components, whole pages and dialogs against the real services. |
 
 ### Design decisions
 
