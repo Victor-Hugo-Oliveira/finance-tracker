@@ -16,7 +16,7 @@
                 <MudItem xs="12" sm="6">
                     <MudTextField T="decimal?" Label="Valor" @bind-Value="_model.Amount" For="() => _model.Amount" Converter="MoneyConverter.Instance"
                                      Adornment="Adornment.Start" AdornmentText="R$" InputMode="@(InputMode.@decimal)" Placeholder="0,00"
-                                     Variant="Variant.Outlined" AutoFocus="true" />
+                                     Variant="Variant.Outlined" />
                 </MudItem>
                 <MudItem xs="12" sm="6">
                     <MudDatePicker Label="Data" @bind-Date="_model.Date" For="() => _model.Date"
