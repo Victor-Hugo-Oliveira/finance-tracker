@@ -2,6 +2,7 @@ using FinanceTracker.Core.Domain;
 using FinanceTracker.Core.Persistence;
 using FinanceTracker.Core.Reports;
 using FinanceTracker.Core.Services;
+using FinanceTracker.Core.Transfer;
 using Microsoft.Extensions.Time.Testing;
 
 namespace FinanceTracker.Core.Tests;
@@ -19,6 +20,8 @@ public sealed class TestApp
     public TransactionService Transactions { get; }
     public BudgetService Budgets { get; }
     public ReportService Reports { get; }
+    public ImportService Imports { get; }
+    public BackupService Backup { get; }
 
     public TestApp()
     {
@@ -27,6 +30,8 @@ public sealed class TestApp
         Transactions = new TransactionService(Workspace, Clock);
         Budgets = new BudgetService(Workspace);
         Reports = new ReportService(Workspace);
+        Imports = new ImportService(Workspace, Clock);
+        Backup = new BackupService(Workspace, Clock);
     }
 
     /// <summary>A fresh app reading the same store, i.e. "the user reloaded the page".</summary>

@@ -1,0 +1,328 @@
+@page "/dados"
+@inject BackupService Backup
+@inject ImportService Imports
+@inject FileDownloader Downloader
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject TimeProvider Time
+
+<PageTitle>Dados · Finance Tracker</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-1">Dados</MudText>
+<MudText Class="mud-text-secondary mb-4">
+    Tudo fica salvo apenas neste navegador. Faça backups de vez em quando, principalmente antes de limpar os dados do navegador.
+</MudText>
+
+<MudPaper Class="pa-4 mb-4 d-flex flex-wrap gap-6" Elevation="0" Outlined="true">
+    <div><MudText Typo="Typo.caption" Class="mud-text-secondary">Transações</MudText><MudText Typo="Typo.h6">@_summary.Transactions</MudText></div>
+    <div><MudText Typo="Typo.caption" Class="mud-text-secondary">Categorias</MudText><MudText Typo="Typo.h6">@_summary.Categories</MudText></div>
+    <div><MudText Typo="Typo.caption" Class="mud-text-secondary">Orçamentos</MudText><MudText Typo="Typo.h6">@_summary.Budgets</MudText></div>
+</MudPaper>
+
+<MudGrid Spacing="3">
+    @* ---- Import CSV ---- *@
+    <MudItem xs="12">
+        <MudPaper Class="pa-4" Elevation="0" Outlined="true">
+            <div class="d-flex align-center gap-2 mb-1">
+                <MudIcon Icon="@Icons.Material.Filled.UploadFile" Color="Color.Primary" />
+                <MudText Typo="Typo.h6">Importar transações (CSV)</MudText>
+            </div>
+            <MudText Typo="Typo.body2" Class="mud-text-secondary mb-3">
+                Colunas: <code>data;tipo;valor;categoria;descricao</code>. Datas como 05/11/2026, valores como 1.234,56.
+                Sem a coluna <i>tipo</i>, valores negativos viram despesas. Categorias que não existem são criadas.
+                Você vê uma prévia antes de importar.
+            </MudText>
+
+            @if (_preview is null)
+            {
+                <div class="d-flex flex-wrap gap-2">
+                    <MudFileUpload T="IBrowserFile" Accept=".csv,.txt" FilesChanged="CsvSelectedAsync" MaximumFileCount="1" Context="csvUpload">
+                        <CustomContent>
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.FileOpen" Disabled="_busy"
+                                       OnClick="csvUpload.OpenFilePickerAsync">
+                                Escolher arquivo CSV
+                            </MudButton>
+                        </CustomContent>
+                    </MudFileUpload>
+                    <MudButton Variant="Variant.Text" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Download" OnClick="DownloadTemplateAsync">
+                        Baixar modelo
+                    </MudButton>
+                </div>
+            }
+            else
+            {
+                <MudText Typo="Typo.subtitle1" Class="mb-2">Prévia de <b>@_fileName</b></MudText>
+                <div class="d-flex flex-wrap gap-2 mb-3">
+                    <MudChip T="string" Color="Color.Success" Icon="@Icons.Material.Filled.Check">
+                        @_preview.ToImport.Count para importar
+                    </MudChip>
+                    @if (_preview.Duplicates.Count > 0)
+                    {
+                        <MudChip T="string" Color="Color.Default" Icon="@Icons.Material.Filled.ContentCopy">
+                            @_preview.Duplicates.Count @(_preview.Duplicates.Count == 1 ? "já existe (ignorada)" : "já existem (ignoradas)")
+                        </MudChip>
+                    }
+                    @if (_preview.Errors.Count > 0)
+                    {
+                        <MudChip T="string" Color="Color.Error" Icon="@Icons.Material.Filled.ErrorOutline">
+                            @_preview.Errors.Count com erro
+                        </MudChip>
+                    }
+                </div>
+
+                @if (_preview.ToImport.Count > 0)
+                {
+                    <MudText Typo="Typo.body2" Class="mb-2">
+                        Receitas: <span class="amount-income">@Format.Money(_preview.TotalIncome)</span> ·
+                        Despesas: <span class="amount-expense">@Format.Money(_preview.TotalExpenses)</span> ·
+                        Período: @Format.Date(_preview.ToImport.Min(r => r.Date)) a @Format.Date(_preview.ToImport.Max(r => r.Date))
+                    </MudText>
+                }
+
+                @if (_preview.NewCategories.Count > 0)
+                {
+                    <MudText Typo="Typo.body2" Class="mb-1">Categorias que serão criadas:</MudText>
+                    <div class="d-flex flex-wrap gap-1 mb-3">
+                        @foreach (var c in _preview.NewCategories)
+                        {
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@c.Name (@Format.TypeName(c.Type).ToLower(Format.PtBr))</MudChip>
+                        }
+                    </div>
+                }
+
+                @if (_preview.Errors.Count > 0)
+                {
+                    <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-2">
+                        As linhas com erro não serão importadas. Corrija o arquivo e escolha-o de novo se quiser incluí-las.
+                    </MudAlert>
+                    <MudSimpleTable Dense="true" Elevation="0" Style="max-height:260px; overflow:auto" Class="mb-3">
+                        <thead><tr><th style="width:80px">Linha</th><th>Problema</th></tr></thead>
+                        <tbody>
+                            @foreach (var e in _preview.Errors.Take(MaxErrorsShown))
+                            {
+                                <tr><td>@e.Line</td><td>@e.Message</td></tr>
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                    @if (_preview.Errors.Count > MaxErrorsShown)
+                    {
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary mb-3" Style="display:block">
+                            Mostrando os primeiros @MaxErrorsShown de @_preview.Errors.Count erros.
+                        </MudText>
+                    }
+                }
+
+                <div class="d-flex flex-wrap gap-2">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ImportAsync"
+                               Disabled="_busy || _preview.ToImport.Count == 0">
+                        Importar @_preview.ToImport.Count @(_preview.ToImport.Count == 1 ? "transação" : "transações")
+                    </MudButton>
+                    <MudButton Variant="Variant.Text" OnClick="() => _preview = null" Disabled="_busy">Cancelar</MudButton>
+                </div>
+            }
+        </MudPaper>
+    </MudItem>
+
+    @* ---- Export & backup ---- *@
+    <MudItem xs="12" md="6">
+        <MudPaper Class="pa-4" Elevation="0" Outlined="true" Style="height:100%">
+            <div class="d-flex align-center gap-2 mb-1">
+                <MudIcon Icon="@Icons.Material.Filled.Download" Color="Color.Primary" />
+                <MudText Typo="Typo.h6">Exportar</MudText>
+            </div>
+            <MudText Typo="Typo.body2" Class="mud-text-secondary mb-3">
+                O CSV abre no Excel ou no Google Planilhas. O backup (JSON) guarda tudo — categorias, transações
+                e orçamentos — e pode ser restaurado aqui depois.
+            </MudText>
+            <div class="d-flex flex-wrap gap-2">
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.TableView"
+                           OnClick="ExportCsvAsync" Disabled="_summary.Transactions == 0">Transações (CSV)</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Backup"
+                           OnClick="ExportBackupAsync">Backup completo (JSON)</MudButton>
+            </div>
+        </MudPaper>
+    </MudItem>
+
+    @* ---- Restore ---- *@
+    <MudItem xs="12" md="6">
+        <MudPaper Class="pa-4" Elevation="0" Outlined="true" Style="height:100%">
+            <div class="d-flex align-center gap-2 mb-1">
+                <MudIcon Icon="@Icons.Material.Filled.SettingsBackupRestore" Color="Color.Primary" />
+                <MudText Typo="Typo.h6">Restaurar backup</MudText>
+            </div>
+            <MudText Typo="Typo.body2" Class="mud-text-secondary mb-3">
+                Substitui todos os dados atuais pelos do arquivo. O arquivo é conferido antes, e você confirma o que será restaurado.
+            </MudText>
+            <div class="d-flex">
+                <MudFileUpload T="IBrowserFile" Accept=".json" FilesChanged="BackupSelectedAsync" MaximumFileCount="1" Context="backupUpload">
+                    <CustomContent>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.FileOpen" Disabled="_busy"
+                                   OnClick="backupUpload.OpenFilePickerAsync">
+                            Escolher backup
+                        </MudButton>
+                    </CustomContent>
+                </MudFileUpload>
+            </div>
+        </MudPaper>
+    </MudItem>
+
+    @* ---- Sample data & reset ---- *@
+    <MudItem xs="12" md="6">
+        <MudPaper Class="pa-4" Elevation="0" Outlined="true" Style="height:100%">
+            <div class="d-flex align-center gap-2 mb-1">
+                <MudIcon Icon="@Icons.Material.Filled.AutoAwesome" Color="Color.Primary" />
+                <MudText Typo="Typo.h6">Dados de exemplo</MudText>
+            </div>
+            <MudText Typo="Typo.body2" Class="mud-text-secondary mb-3">
+                Preenche o app com 6 meses de receitas, despesas e orçamentos fictícios para você explorar os gráficos.
+                Substitui os dados atuais.
+            </MudText>
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.AutoAwesome"
+                       OnClick="LoadSampleAsync" Disabled="_busy">Carregar dados de exemplo</MudButton>
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" md="6">
+        <MudPaper Class="pa-4" Elevation="0" Outlined="true" Style="height:100%; border-color: var(--mud-palette-error)">
+            <div class="d-flex align-center gap-2 mb-1">
+                <MudIcon Icon="@Icons.Material.Filled.DeleteForever" Color="Color.Error" />
+                <MudText Typo="Typo.h6">Apagar tudo</MudText>
+            </div>
+            <MudText Typo="Typo.body2" Class="mud-text-secondary mb-3">
+                Remove todas as transações e orçamentos e volta às categorias padrão. Não pode ser desfeito.
+            </MudText>
+            <MudButton Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.DeleteForever"
+                       OnClick="ResetAsync" Disabled="_busy">Apagar todos os dados</MudButton>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private const int MaxErrorsShown = 50;
+
+    private BackupSummary _summary = new(0, 0, 0);
+    private ImportPreview? _preview;
+    private string _fileName = string.Empty;
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync() => _summary = await Backup.GetSummaryAsync();
+
+    private string Today => Time.GetLocalNow().ToString("yyyy-MM-dd");
+
+    // ---- Import ----
+
+    private async Task CsvSelectedAsync(IBrowserFile? file)
+    {
+        if (file is null) return;
+        await RunAsync(async () =>
+        {
+            var text = await TextFileReader.ReadAsync(file);
+            _preview = await Imports.PreviewAsync(text);
+            _fileName = file.Name;
+        });
+    }
+
+    private async Task ImportAsync()
+    {
+        if (_preview is null) return;
+        await RunAsync(async () =>
+        {
+            var count = await Imports.ImportAsync(_preview);
+            _preview = null;
+            Snackbar.Add($"{count} {(count == 1 ? "transação importada" : "transações importadas")}.", Severity.Success);
+        });
+    }
+
+    private Task DownloadTemplateAsync() => Downloader.DownloadAsync("modelo-importacao.csv",
+        "data;tipo;valor;categoria;descricao\r\n" +
+        "05/11/2026;Receita;6.200,00;Salário;Salário de novembro\r\n" +
+        "07/11/2026;Despesa;89,90;Alimentação;Supermercado\r\n" +
+        "08/11/2026;Despesa;45,00;Pets;Ração\r\n",
+        "text/csv;charset=utf-8");
+
+    // ---- Export ----
+
+    private async Task ExportCsvAsync() =>
+        await Downloader.DownloadAsync($"finance-tracker-transacoes-{Today}.csv", await Backup.ExportCsvAsync(), "text/csv;charset=utf-8");
+
+    private async Task ExportBackupAsync()
+    {
+        await Downloader.DownloadAsync($"finance-tracker-backup-{Today}.json", await Backup.ExportJsonAsync(), "application/json");
+        Snackbar.Add("Backup baixado.", Severity.Success);
+    }
+
+    // ---- Restore, sample, reset ----
+
+    private async Task BackupSelectedAsync(IBrowserFile? file)
+    {
+        if (file is null) return;
+        await RunAsync(async () =>
+        {
+            var json = await TextFileReader.ReadAsync(file);
+            var (_, incoming) = BackupService.ReadBackup(json); // validates before asking
+
+            var confirmed = await DialogService.ShowMessageBoxAsync(
+                "Restaurar backup",
+                $"O arquivo tem {incoming.Transactions} transações, {incoming.Categories} categorias e {incoming.Budgets} orçamentos. " +
+                $"Os dados atuais ({_summary.Transactions} transações) serão substituídos. Continuar?",
+                yesText: "Restaurar", cancelText: "Cancelar");
+            if (confirmed != true) return;
+
+            await Backup.RestoreAsync(json);
+            Snackbar.Add("Backup restaurado.", Severity.Success);
+        });
+    }
+
+    private async Task LoadSampleAsync()
+    {
+        var message = _summary.Transactions == 0
+            ? "Carregar 6 meses de dados fictícios?"
+            : $"Os dados atuais ({_summary.Transactions} transações) serão substituídos pelos dados de exemplo. " +
+              "Se quiser guardá-los, baixe um backup antes. Continuar?";
+        var confirmed = await DialogService.ShowMessageBoxAsync("Dados de exemplo", message,
+            yesText: "Carregar", cancelText: "Cancelar");
+        if (confirmed != true) return;
+
+        await RunAsync(async () =>
+        {
+            await Backup.LoadSampleDataAsync();
+            Snackbar.Add("Dados de exemplo carregados. Veja o Dashboard!", Severity.Success);
+        });
+    }
+
+    private async Task ResetAsync()
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Apagar todos os dados",
+            $"Apagar {_summary.Transactions} transações e {_summary.Budgets} orçamentos e voltar às categorias padrão? " +
+            "Essa ação não pode ser desfeita.",
+            yesText: "Apagar tudo", cancelText: "Cancelar");
+        if (confirmed != true) return;
+
+        await RunAsync(async () =>
+        {
+            await Backup.ResetAsync();
+            _preview = null;
+            Snackbar.Add("Todos os dados foram apagados.", Severity.Info);
+        });
+    }
+
+    /// <summary>Runs an action with the buttons disabled, shows domain errors, and refreshes the counts.</summary>
+    private async Task RunAsync(Func<Task> action)
+    {
+        _busy = true;
+        try
+        {
+            await action();
+        }
+        catch (DomainException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+            _summary = await Backup.GetSummaryAsync();
+        }
+    }
+}

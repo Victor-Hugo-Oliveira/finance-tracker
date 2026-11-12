@@ -2,6 +2,7 @@ using System.Globalization;
 using FinanceTracker.Core.Persistence;
 using FinanceTracker.Core.Reports;
 using FinanceTracker.Core.Services;
+using FinanceTracker.Core.Transfer;
 using FinanceTracker.Web;
 using FinanceTracker.Web.Services;
 using Microsoft.AspNetCore.Components.Web;
@@ -31,5 +32,8 @@ builder.Services.AddSingleton<CategoryService>();
 builder.Services.AddSingleton<TransactionService>();
 builder.Services.AddSingleton<BudgetService>();
 builder.Services.AddSingleton<ReportService>();
+builder.Services.AddSingleton<ImportService>();
+builder.Services.AddSingleton<BackupService>();
+builder.Services.AddScoped<FileDownloader>();
 
 await builder.Build().RunAsync();
